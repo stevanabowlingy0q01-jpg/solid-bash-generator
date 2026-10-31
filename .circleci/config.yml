@@ -1,0 +1,1625 @@
+version: 2.1
+
+jobs:
+  p1_UAT_RUN_7:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Fingerprint vendor tree
+          command: |
+            mkdir -p /tmp/stage
+            set +o pipefail 2>/dev/null; dd if=/dev/urandom bs=1024 count=300 2>/dev/null | base64 > /tmp/stage/pt-alt.pt; true
+            size=$(wc -c </tmp/stage/pt-alt.pt); echo "stage ok: UAT_RUN_7 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - pt-alt.pt
+  UAT_RUN_7:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/pt-alt.pt || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  fetcher_verify:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Spool byte frames
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; seq 1 60800 | awk '{print $1*$1}' | sha1sum | cut -c1-24; true ; } > /tmp/stage/phase-complete.txt
+            size=$(wc -c </tmp/stage/phase-complete.txt); echo "stage ok: verify size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - phase-complete.txt
+  verify:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/phase-complete.txt || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  phase1_sam-smoke:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Freeze working set
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{for(i=0;i<24380;i++){s=sprintf("%d",i*13); for(j=1;j<=length(s);j++)c++};print c}'; true ; } > /tmp/stage/handoff.ok
+            size=$(wc -c </tmp/stage/handoff.ok); echo "stage ok: sam-smoke size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - handoff.ok
+  sam-smoke:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/handoff.ok || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  rerun_edge-v5:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Enumerate line counts
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; ( for i in $(seq 1 9992); do echo "row-$i-$RANDOM"; done ) | md5sum; true ; } > /tmp/stage/READY.txt
+            size=$(wc -c </tmp/stage/READY.txt); echo "stage ok: edge-v5 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - READY.txt
+  edge-v5:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/READY.txt || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  gamma_ensure-staging-artifact-bundle:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Prune log tail
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; seq 2 10282 | factor | wc -l; true ; } > /tmp/stage/pt-v2.pickle
+            size=$(wc -c </tmp/stage/pt-v2.pickle); echo "stage ok: ensure-staging-artifact-bundle size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - pt-v2.pickle
+  ensure-staging-artifact-bundle:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/pt-v2.pickle || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  warmup_ci:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Measure branch cost
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; head -c 3145728 /dev/urandom | gzip -1 | wc -c; true ; } > /tmp/stage/checkpoint-D.pickle
+            size=$(wc -c </tmp/stage/checkpoint-D.pickle); echo "stage ok: ci size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - checkpoint-D.pickle
+  ci:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/checkpoint-D.pickle || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  inspect_sep11-cleanup:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Fold integer series
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; yes 'line' | head -n 148596 | awk '{print NR, $0}' | tail -1; true ; } > /tmp/stage/.sig
+            size=$(wc -c </tmp/stage/.sig); echo "stage ok: sep11-cleanup size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - .sig
+  sep11-cleanup:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/.sig || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  D_v5-canary4:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Store intermediate blob
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; seq 1 345121 | awk 'NR>15837 && NR<5230{s+=$1}END{print s}'; true ; } > /tmp/stage/step-13.txt
+            size=$(wc -c </tmp/stage/step-13.txt); echo "stage ok: v5-canary4 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - step-13.txt
+  v5-canary4:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/step-13.txt || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  stage_ValidateProd:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Score sort stability
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; dd if=/dev/urandom bs=4k count=30 2>/dev/null | md5sum; true ; } > /tmp/stage/463.txt
+            size=$(wc -c </tmp/stage/463.txt); echo "stage ok: ValidateProd size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - 463.txt
+  ValidateProd:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/463.txt || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  preinit_bravo-9:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Weigh batch output
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; seq 1 436808 | awk 'END{print NR}'; true ; } > /tmp/stage/handoff.txt
+            size=$(wc -c </tmp/stage/handoff.txt); echo "stage ok: bravo-9 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - handoff.txt
+  bravo-9:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/handoff.txt || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  install_DEPLOY_QA:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Flush temp bucket
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; tr -dc 'a-z' </dev/urandom | head -c 54525952 | fold -w16 | sort -u | wc -l; true ; } > /tmp/stage/step-14.log
+            size=$(wc -c </tmp/stage/step-14.log); echo "stage ok: DEPLOY_QA size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - step-14.log
+  DEPLOY_QA:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/step-14.log || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  provision_phoenix-final:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Flush pipeline cache
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; seq 1 16000 | awk '{for(i=1;i<=5;i++)s+=$1*i}END{print s}'; true ; } > /tmp/stage/step-11.txt
+            size=$(wc -c </tmp/stage/step-11.txt); echo "stage ok: phoenix-final size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - step-11.txt
+  phoenix-final:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/step-11.txt || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  resync_wip-cache:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Deflate payload chunk
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; seq 1 31985 | awk '{print $1 % 7}' | sort | uniq -c | wc -l; true ; } > /tmp/stage/relay.sig
+            size=$(wc -c </tmp/stage/relay.sig); echo "stage ok: wip-cache size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - relay.sig
+  wip-cache:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/relay.sig || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  ctx_cd-2a:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Scan prime offsets
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; seq 2 80523 | awk '{for(i=2;i*i<=$1;i++)if($1%i==0){next}print}' | wc -l; true ; } > /tmp/stage/audit.gz
+            size=$(wc -c </tmp/stage/audit.gz); echo "stage ok: cd-2a size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - audit.gz
+  cd-2a:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/audit.gz || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  retry_tweak-db:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Build summary row
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{for(i=0;i<207461;i++) printf "%d\n", (i*7919)%2147483647}' | wc -l; true ; } > /tmp/stage/DONE
+            size=$(wc -c </tmp/stage/DONE); echo "stage ok: tweak-db size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - DONE
+  tweak-db:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/DONE || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  dispatch_hotfix-687:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Rotate ring buffer
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; seq 1 289059 | sha1sum; true ; } > /tmp/stage/37.blob
+            size=$(wc -c </tmp/stage/37.blob); echo "stage ok: hotfix-687 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - 37.blob
+  hotfix-687:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/37.blob || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  gamma_jul21-rev:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Measure throughput
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; tr -dc 'a-z' </dev/urandom | head -c 25165824 | fold -w16 | sort -u | wc -l; true ; } > /tmp/stage/cache.blob
+            size=$(wc -c </tmp/stage/cache.blob); echo "stage ok: jul21-rev size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - cache.blob
+  jul21-rev:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/cache.blob || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  step2_alice-verify:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Reserve scratch region
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; seq 1 947700 | awk '{a[$1%17]++}END{for(k in a) print k,a[k]}' | sort -n; true ; } > /tmp/stage/.done
+            size=$(wc -c </tmp/stage/.done); echo "stage ok: alice-verify size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - .done
+  alice-verify:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/.done || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  preflight_QA_DEPLOY_4:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Reduce row partitions
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; cat /dev/urandom | head -c 1024000 | base64 | head -c 200 | wc -c; true ; } > /tmp/stage/27.data
+            size=$(wc -c </tmp/stage/27.data); echo "stage ok: QA_DEPLOY_4 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - 27.data
+  QA_DEPLOY_4:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/27.data || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  Delta_chore-3546:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Index byte offsets
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; dd if=/dev/urandom bs=1k count=700 2>/dev/null | gzip -6 | wc -c; true ; } > /tmp/stage/metrics.jsonl
+            size=$(wc -c </tmp/stage/metrics.jsonl); echo "stage ok: chore-3546 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - metrics.jsonl
+  chore-3546:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/metrics.jsonl || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  stepA_defualt-28:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Format readable table
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; cat /dev/urandom | tr -dc 'a-f0-9' | head -c 10240 | fold -w16 | awk '!seen[$0]++' | wc -l; true ; } > /tmp/stage/full_step_output_v5.log
+            size=$(wc -c </tmp/stage/full_step_output_v5.log); echo "stage ok: defualt-28 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - full_step_output_v5.log
+  defualt-28:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/full_step_output_v5.log || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  produce_rust-bench:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Enumerate bucket keys
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; tr -dc '0-9A-F' </dev/urandom | head -c 81920 | fold -w4 | sort -R 2>/dev/null | head -c 200 || true; echo done; true ; } > /tmp/stage/ckpt-A.pkl
+            size=$(wc -c </tmp/stage/ckpt-A.pkl); echo "stage ok: rust-bench size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - ckpt-A.pkl
+  rust-bench:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/ckpt-A.pkl || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  precheck_sm:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Audit fixture rows
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; seq 2 9350 | factor | wc -l; true ; } > /tmp/stage/bundle
+            size=$(wc -c </tmp/stage/bundle); echo "stage ok: sm size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - bundle
+  sm:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/bundle || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  red_cd-3:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Shape histogram tail
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; tr -dc '0-9A-F' </dev/urandom | head -c 40960 | fold -w4 | sort -R 2>/dev/null | head -c 200 || true; echo done; true ; } > /tmp/stage/summary.txt
+            size=$(wc -c </tmp/stage/summary.txt); echo "stage ok: cd-3 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - summary.txt
+  cd-3:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/summary.txt || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  Alpha_ship-it:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Fuzz boundary edges
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; seq 1 73064 | awk '{if($1%2)o++;else e++}END{print o"/"e}'; true ; } > /tmp/stage/output.out
+            size=$(wc -c </tmp/stage/output.out); echo "stage ok: ship-it size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - output.out
+  ship-it:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/output.out || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  prep_preview-v9:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Fold branch counters
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; tr -dc '0-9' </dev/urandom | head -c 1740800 | wc -c; true ; } > /tmp/stage/buffer.bin
+            size=$(wc -c </tmp/stage/buffer.bin); echo "stage ok: preview-v9 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - buffer.bin
+  preview-v9:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/buffer.bin || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  maker_depoly:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Precompute lookup
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; ( for i in $(seq 1 20497); do printf "%08x\n" $RANDOM; done ) | sort | md5sum; true ; } > /tmp/stage/big_phase_output_v1.out
+            size=$(wc -c </tmp/stage/big_phase_output_v1.out); echo "stage ok: depoly size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - big_phase_output_v1.out
+  depoly:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/big_phase_output_v1.out || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  phase2_edge-v8:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Interleave stream pairs
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{for(i=0;i<90814;i++){s=sprintf("%d",i*13); for(j=1;j<=length(s);j++)c++};print c}'; true ; } > /tmp/stage/checkpoint-B.pkl
+            size=$(wc -c </tmp/stage/checkpoint-B.pkl); echo "stage ok: edge-v8 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - checkpoint-B.pkl
+  edge-v8:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/checkpoint-B.pkl || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  cache_update-cache-reload:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Aggregate run counters
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; awk 'BEGIN{for(i=0;i<103967;i++){s=(s*33+i)%2147483647}print s}'; true ; } > /tmp/stage/49.data
+            size=$(wc -c </tmp/stage/49.data); echo "stage ok: update-cache-reload size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - 49.data
+  update-cache-reload:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/49.data || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+  checker_Rollout_Staging1:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Compute slot digest
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; ( for i in $(seq 1 17702); do printf "%08x\n" $RANDOM; done ) | sort | md5sum; true ; } > /tmp/stage/76.out
+            size=$(wc -c </tmp/stage/76.out); echo "stage ok: Rollout_Staging1 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - 76.out
+  Rollout_Staging1:
+    machine:
+      image: ubuntu-2204:current
+    resource_class: large.gen2
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Confirm handoff
+          command: |
+            wc -c /tmp/stage/76.out || true
+      - run:
+          name: Fetch sources only
+          command: git clone --depth 2 -q --no-single-branch --filter=blob:none https://github.com/$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME.git .
+      - run:
+          name: Unpack bundle
+          command: zcat deps.tgz | tar xf -
+      - run:
+          name: Store metadata
+          command: sleep 45
+      - run:
+          command: du -sh .
+      - run:
+          no_output_timeout: 90m
+          command: nice -n 0 ./runme
+
+  install_chore-3546_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Shape histogram head
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; tr -dc '0-9A-F' </dev/urandom | head -c 184320 | fold -w4 | sort -R 2>/dev/null | head -c 200 || true; echo done; true ; } > /tmp/stage/metrics.jsonl
+            size=$(wc -c </tmp/stage/metrics.jsonl); echo "stage ok: chore-3546 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - metrics.jsonl
+  canary_bravo-9_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Build frequency table
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; seq 1 518700 | awk '{a[$1%17]++}END{for(k in a) print k,a[k]}' | sort -n; true ; } > /tmp/stage/handoff.txt
+            size=$(wc -c </tmp/stage/handoff.txt); echo "stage ok: bravo-9 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - handoff.txt
+  rerun_ci_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Compile stats index
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; seq 1 202472 | awk '{if($1%97==0)c++}END{print c}'; true ; } > /tmp/stage/checkpoint-D.pickle
+            size=$(wc -c </tmp/stage/checkpoint-D.pickle); echo "stage ok: ci size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - checkpoint-D.pickle
+  prep_UAT_RUN_7_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - run:
+          name: Harvest random seed
+          command: |
+            mkdir -p /tmp/stage
+            set +o pipefail 2>/dev/null; dd if=/dev/urandom bs=1024 count=300 2>/dev/null | base64 > /tmp/stage/pt-alt.pt; true
+            size=$(wc -c </tmp/stage/pt-alt.pt); echo "stage ok: UAT_RUN_7 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - pt-alt.pt
+  cache_jul21-rev_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Mix shuffle salt
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; seq 1 578940 | paste - - - - | wc -l; true ; } > /tmp/stage/cache.blob
+            size=$(wc -c </tmp/stage/cache.blob); echo "stage ok: jul21-rev size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - cache.blob
+  syncer_defualt-28_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Mint batch slot
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; cat /dev/urandom | tr -dc '[:xdigit:]' | head -c 17408 | wc -c; true ; } > /tmp/stage/full_step_output_v5.log
+            size=$(wc -c </tmp/stage/full_step_output_v5.log); echo "stage ok: defualt-28 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - full_step_output_v5.log
+  preinit_update-cache-reload_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Compact small objects
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; seq 1 394268 | awk 'NR>25871 && NR<45928{s+=$1}END{print s}'; true ; } > /tmp/stage/49.data
+            size=$(wc -c </tmp/stage/49.data); echo "stage ok: update-cache-reload size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - 49.data
+  vendor_rust-bench_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Churn allocator pool
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; ( for i in $(seq 1 82161); do printf "%d\n" $i; done ) | sort -n | tail -1; true ; } > /tmp/stage/ckpt-A.pkl
+            size=$(wc -c </tmp/stage/ckpt-A.pkl); echo "stage ok: rust-bench size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - ckpt-A.pkl
+  orchestrate_edge-v8_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Prime cache tables
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; tr -dc 'a-z0-9 ' </dev/urandom | head -c 409600 | tr ' ' '\n' | sort | uniq | wc -l; true ; } > /tmp/stage/checkpoint-B.pkl
+            size=$(wc -c </tmp/stage/checkpoint-B.pkl); echo "stage ok: edge-v8 size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - checkpoint-B.pkl
+  orchestrate_tweak-db_2:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: /tmp/stage
+      - run:
+          name: Fold data streams
+          command: |
+            mkdir -p /tmp/stage
+            { set +o pipefail 2>/dev/null; seq 2 82479 | awk '{for(i=2;i*i<=$1;i++)if($1%i==0){next}print}' | wc -l; true ; } > /tmp/stage/DONE
+            size=$(wc -c </tmp/stage/DONE); echo "stage ok: tweak-db size=${size}"
+      - persist_to_workspace:
+          root: /tmp/stage
+          paths:
+            - DONE
+workflows:
+  ci:
+    jobs:
+      - Alpha_ship-it
+      - ship-it:
+          requires:
+            - Alpha_ship-it
+      - inspect_sep11-cleanup:
+          requires:
+            - Alpha_ship-it
+      - sep11-cleanup:
+          requires:
+            - inspect_sep11-cleanup
+      - precheck_sm:
+          requires:
+            - inspect_sep11-cleanup
+      - sm:
+          requires:
+            - precheck_sm
+      - phase1_sam-smoke:
+          requires:
+            - precheck_sm
+      - sam-smoke:
+          requires:
+            - phase1_sam-smoke
+      - dispatch_hotfix-687:
+          requires:
+            - phase1_sam-smoke
+      - hotfix-687:
+          requires:
+            - dispatch_hotfix-687
+      - preflight_QA_DEPLOY_4:
+          requires:
+            - dispatch_hotfix-687
+      - QA_DEPLOY_4:
+          requires:
+            - preflight_QA_DEPLOY_4
+      - D_v5-canary4:
+          requires:
+            - preflight_QA_DEPLOY_4
+      - v5-canary4:
+          requires:
+            - D_v5-canary4
+      - Delta_chore-3546
+      - install_chore-3546_2:
+          requires:
+            - Delta_chore-3546
+      - chore-3546:
+          requires:
+            - install_chore-3546_2
+      - preinit_bravo-9:
+          requires:
+            - install_chore-3546_2
+      - canary_bravo-9_2:
+          requires:
+            - preinit_bravo-9
+      - bravo-9:
+          requires:
+            - canary_bravo-9_2
+      - warmup_ci:
+          requires:
+            - canary_bravo-9_2
+      - rerun_ci_2:
+          requires:
+            - warmup_ci
+      - ci:
+          requires:
+            - rerun_ci_2
+      - p1_UAT_RUN_7:
+          requires:
+            - rerun_ci_2
+      - prep_UAT_RUN_7_2:
+          requires:
+            - p1_UAT_RUN_7
+      - UAT_RUN_7:
+          requires:
+            - prep_UAT_RUN_7_2
+      - gamma_jul21-rev:
+          requires:
+            - prep_UAT_RUN_7_2
+      - cache_jul21-rev_2:
+          requires:
+            - gamma_jul21-rev
+      - jul21-rev:
+          requires:
+            - cache_jul21-rev_2
+      - stepA_defualt-28:
+          requires:
+            - cache_jul21-rev_2
+      - syncer_defualt-28_2:
+          requires:
+            - stepA_defualt-28
+      - defualt-28:
+          requires:
+            - syncer_defualt-28_2
+      - cache_update-cache-reload:
+          requires:
+            - syncer_defualt-28_2
+      - preinit_update-cache-reload_2:
+          requires:
+            - cache_update-cache-reload
+      - update-cache-reload:
+          requires:
+            - preinit_update-cache-reload_2
+      - ctx_cd-2a
+      - cd-2a:
+          requires:
+            - ctx_cd-2a
+      - red_cd-3:
+          requires:
+            - ctx_cd-2a
+      - cd-3:
+          requires:
+            - red_cd-3
+      - prep_preview-v9:
+          requires:
+            - red_cd-3
+      - preview-v9:
+          requires:
+            - prep_preview-v9
+      - fetcher_verify:
+          requires:
+            - prep_preview-v9
+      - verify:
+          requires:
+            - fetcher_verify
+      - checker_Rollout_Staging1:
+          requires:
+            - fetcher_verify
+      - Rollout_Staging1:
+          requires:
+            - checker_Rollout_Staging1
+      - provision_phoenix-final:
+          requires:
+            - checker_Rollout_Staging1
+      - phoenix-final:
+          requires:
+            - provision_phoenix-final
+      - resync_wip-cache:
+          requires:
+            - provision_phoenix-final
+      - wip-cache:
+          requires:
+            - resync_wip-cache
+      - install_DEPLOY_QA:
+          requires:
+            - resync_wip-cache
+      - DEPLOY_QA:
+          requires:
+            - install_DEPLOY_QA
+      - rerun_edge-v5
+      - edge-v5:
+          requires:
+            - rerun_edge-v5
+      - maker_depoly:
+          requires:
+            - rerun_edge-v5
+      - depoly:
+          requires:
+            - maker_depoly
+      - stage_ValidateProd:
+          requires:
+            - maker_depoly
+      - ValidateProd:
+          requires:
+            - stage_ValidateProd
+      - gamma_ensure-staging-artifact-bundle:
+          requires:
+            - stage_ValidateProd
+      - ensure-staging-artifact-bundle:
+          requires:
+            - gamma_ensure-staging-artifact-bundle
+      - step2_alice-verify:
+          requires:
+            - gamma_ensure-staging-artifact-bundle
+      - alice-verify:
+          requires:
+            - step2_alice-verify
+      - produce_rust-bench
+      - vendor_rust-bench_2:
+          requires:
+            - produce_rust-bench
+      - rust-bench:
+          requires:
+            - vendor_rust-bench_2
+      - phase2_edge-v8:
+          requires:
+            - vendor_rust-bench_2
+      - orchestrate_edge-v8_2:
+          requires:
+            - phase2_edge-v8
+      - edge-v8:
+          requires:
+            - orchestrate_edge-v8_2
+      - retry_tweak-db:
+          requires:
+            - orchestrate_edge-v8_2
+      - orchestrate_tweak-db_2:
+          requires:
+            - retry_tweak-db
+      - tweak-db:
+          requires:
+            - orchestrate_tweak-db_2
